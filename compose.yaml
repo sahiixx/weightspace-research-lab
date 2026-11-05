@@ -1,0 +1,13 @@
+services:
+  lab:
+    build: .
+    image: weightspace-research-lab:local
+    volumes:
+      - ./runs:/workspace/runs
+    command: ["pipeline", "--out", "/workspace/runs/demo"]
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true

@@ -1,0 +1,10 @@
+.git
+.gitignore
+.pytest_cache
+**/__pycache__
+*.pyc
+.venv
+runs
+external
+*.zip
+SHA256SUMS.txt
