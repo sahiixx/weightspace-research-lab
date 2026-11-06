@@ -229,3 +229,17 @@ This release adds three **separate** paths instead of claiming that a local toy 
 3. **Codex proposal tools:** See `AGENTS.md`, `.agents/skills/weightspace-proposal/SKILL.md` and `docs/CODEX_APPROVAL.md`. Agent can propose/inspect only. A separately controlled human operator, not the agent, runs `wslab sign` and `wslab apply` with a protected signing key.
 
 See `docs/V0_5_SCOPE.md` for exact completed and missing verification. No real Qwen checkpoint or GPU benchmark is bundled or run by CI.
+
+## v0.6: real-Qwen independent verification and GPU execution gates
+
+This release adds **independent CPU checkpoint reconstruction** for the real
+Qwen3.5-0.8B p50c edit, an opt-in **manual GPU MATH-500 benchmark**, a strict
+paired-report comparator, and optional operator-signed results via the existing
+SAHIIXX Trust Core SDK. No model weights, external signing keys, or benchmark
+scores are included in the repository. Real-model verification requires public
+model downloads; full inference requires a separately provisioned CUDA GPU.
+
+See [docs/QWEN_REAL_VERIFICATION.md](docs/QWEN_REAL_VERIFICATION.md) for exact
+upstream pins, source hashes, CPU and GPU workflows, security boundaries, and
+what counts as independent evidence. **The original synthetic experiment remains
+available and is not a substitute for Qwen inference.**
