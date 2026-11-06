@@ -13,7 +13,7 @@ authors = [{name = "Weight-Space Research Lab contributors"}]
 dependencies = ["torch>=2.3,<3", "numpy>=1.26,<3", "cryptography>=43,<48"]
 
 [project.optional-dependencies]
-test = ["pytest>=8,<10"]
+test = ["pytest>=8,<10", "safetensors>=0.4,<1"]
 official = ["safetensors>=0.4", "huggingface-hub>=1.0,<2"]
 
 [project.scripts]
