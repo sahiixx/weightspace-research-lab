@@ -120,3 +120,5 @@ and `edited` followed by `scripts/qwen_cpu_smoke.py compare`.
 For a statistically meaningful accuracy result, **do not use this smoke job**.
 Use the separately configured GPU evaluation workflow with identical published
 parameters for both models, then independently audit the paired generations.
+
+The CPU smoke downloader also fetches the model's small processor configuration files. These are required by the official `AutoProcessor` API even for a text-only prompt.

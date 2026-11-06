@@ -9,6 +9,7 @@ on:
     paths:
       - '.github/workflows/qwen-cpu-inference-smoke.yml'
       - 'scripts/qwen_cpu_smoke.py'
+      - 'scripts/qwen_fetch_pinned.py'
       - 'tests/test_qwen_cpu_smoke.py'
   workflow_dispatch:
 

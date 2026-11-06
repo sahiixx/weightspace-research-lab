@@ -53,3 +53,9 @@ def test_compare_rejects_overwrite(tmp_path):
     assert r["math500_accuracy_measured"] is False
     with pytest.raises(ValueError):
         module.compare(tmp_path/"b.json", tmp_path/"e.json", out)
+
+
+def test_pinned_downloader_copies_required_processor_configs():
+    downloader = (SCRIPT.parent / "qwen_fetch_pinned.py").read_text()
+    assert '"preprocessor_config.json"' in downloader
+    assert '"processor_config.json"' in downloader
