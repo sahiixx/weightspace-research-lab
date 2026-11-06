@@ -38,7 +38,7 @@ def download(root: Path, *, no_models=False) -> dict:
         for kind in ("base", "edited"):
             snapshot_download(repo_id=pins[kind]["repo"], revision=pins[kind]["revision"],
                               local_dir=root / kind,
-                              allow_patterns=["*.safetensors", "*.safetensors.index.json", "config.json", "tokenizer*", "merges.txt", "vocab.json", "chat_template.jinja", "generation_config.json"])
+                              allow_patterns=["*.safetensors", "*.safetensors.index.json", "config.json", "tokenizer*", "merges.txt", "vocab.json", "chat_template.jinja", "generation_config.json", "processor_config.json", "preprocessor_config.json", "video_preprocessor_config.json", "added_tokens.json", "special_tokens_map.json"])
     snapshot_download(repo_id=DATA_ID, repo_type="dataset", revision=DATA_SHA,
                       local_dir=root / "dataset", allow_patterns=["test.jsonl"])
     path = root / "dataset" / "test.jsonl"

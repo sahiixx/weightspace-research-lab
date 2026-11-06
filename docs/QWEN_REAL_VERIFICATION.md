@@ -95,3 +95,30 @@ python scripts/qwen_evidence.py verify --report runs/gpu-comparison.json \
 Official logs: https://github.com/RikiyaT/lm_understand-logs/tree/4d09ba6d6a7e891dd8063974dfe81b3d78e3494f/exp8_math
 
 Checkpoint: https://huggingface.co/RikiyaT/Qwen3.5-0.8B-weight-space-programming
+
+## E. Real CPU model-execution smoke (separate from math benchmark)
+
+A standalone, **limited** ordinary GitHub-hosted CPU workflow (`qwen-cpu-inference-smoke.yml`)
+loads both pinned public Qwen models using the documented Transformers multimodal
+API and performs one greedy **non-thinking** generation of at most 32 new tokens
+on the same short math prompt. It writes two unsigned reports plus a pairing
+manifest, even if the two text strings are identical. This tests real model
+loading/inference but says nothing about MATH-500, model improvement, or the
+full Astra edit-generation process.
+
+The workflow is triggered by a push to `research/qwen-cpu-inference-v0.7`, or
+manually; no credentials, proprietary datasets, GPUs, keys, or paid cloud
+capacity are used. It may be slower than normal CI and model-load support
+still depends on the current Transformers release and host CPU. A failure
+is visible in its Actions log and must not be reported as a successful run.
+
+To reproduce on another sufficiently provisioned CPU machine, install the
+requirements listed in the workflow, download the pinned snapshots using
+`qwen_fetch_pinned.py`, then run `scripts/qwen_cpu_smoke.py run` for `base`
+and `edited` followed by `scripts/qwen_cpu_smoke.py compare`.
+
+For a statistically meaningful accuracy result, **do not use this smoke job**.
+Use the separately configured GPU evaluation workflow with identical published
+parameters for both models, then independently audit the paired generations.
+
+The CPU smoke downloader also fetches the model's small processor configuration files. These are required by the official `AutoProcessor` API even for a text-only prompt.

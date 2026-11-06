@@ -243,3 +243,13 @@ See [docs/QWEN_REAL_VERIFICATION.md](docs/QWEN_REAL_VERIFICATION.md) for exact
 upstream pins, source hashes, CPU and GPU workflows, security boundaries, and
 what counts as independent evidence. **The original synthetic experiment remains
 available and is not a substitute for Qwen inference.**
+
+### Real CPU model smoke (not a benchmark)
+
+An optional GitHub-hosted CPU workflow at `.github/workflows/qwen-cpu-inference-smoke.yml`
+performs one short non-thinking text generation from each pinned Qwen3.5-0.8B
+checkpoint, and labels the outputs **not comparable with MATH-500**. It is
+separate from the CPU tensor-reconstruction job and the GPU benchmark. See
+`docs/QWEN_REAL_VERIFICATION.md` for scope and evidence limits.
+
+**Executed CPU evidence:** [base/edited one-prompt run](docs/QWEN_CPU_SMOKE_RESULT.md). Both checkpoints returned `12` on the same short arithmetic prompt; this is not a MATH-500 benchmark.
