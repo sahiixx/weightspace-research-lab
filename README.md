@@ -1,8 +1,14 @@
 # Weight-Space Research Lab
 
-A **complete, runnable, CPU-friendly, offline educational experiment** in localized neural-weight editing with PyTorch, bounded coordinate search, validation gates, immutable base checkpoints, independent holdout scoring, exact-diff verification, CLI, tests, Docker, and JSON/Markdown reports.
+A **complete, runnable, CPU-friendly, offline educational experiment** in localized neural-weight editing with PyTorch, bounded coordinate search, validation gates, no-clobber base checkpoints, independent holdout scoring, exact-diff verification, CLI, tests, Docker, and JSON/Markdown reports.
 
 **Scope in one sentence:** the bundled experiment repairs one intentionally corrupted scalar in a tiny classifier *without gradients*, but **does not claim to reproduce the 2026 GPT-6 Astra/Qwen weight-editing breakthrough**. The published Qwen experiment is accessible through optional resource/reproduction tooling described below.
+
+## Security and trust boundaries
+
+This lab has **two distinct workflows**: `pipeline` constructs an **unsigned, untrusted educational edit** and checks its toy validation metrics; CLI `apply` requires an **Ed25519-signed patch** from a key allowlisted by a separately protected trust store, with source provenance, validation data hash and strict CPU float32 parameters. Neither workflow certifies arbitrary models.
+
+Read [Security and Trust Model](docs/SECURITY_AND_TRUST.md) and [Threat Model](docs/THREAT_MODEL.md). SHA-256 fingerprints detect mismatches; they do not provide authentication. Do **not** commit signing keys or trust-store secrets.
 
 ## Quick start
 
@@ -24,6 +30,8 @@ After running, inspect:
 - `runs/demo/patched.pt`: approved modified checkpoint
 - `runs/demo/report.json`: per-split scores and subgroup metrics, complete candidate-selection evidence
 - `runs/demo/report.md`: readable experiment report
+- `runs/demo/dataset_manifest.json`: exact seeded validation/test tensor hashes
+- `runs/demo/audit_manifest.json`: run ID, environment, evidence tree and event hash chain (integrity only; unsigned)
 
 ## Run everything locally, including robustness and negative controls
 
@@ -52,19 +60,55 @@ Cross-seed averages are a repeatability check on *this toy rule*, not confidence
 intervals for general weight-space editing. These test cases do not prove a secure
 model-serving system.
 
-## One step at a time
+## One step at a time: approved signed patch
+
+The toy CLI demonstrates proposal, authorization and application separately. **Never commit a private signing key**. This example stores its key and trust store outside the repo, in a directory only your user controls:
 
 ```bash
+mkdir -p "$HOME/.config/wslab-keys"
+chmod 700 "$HOME/.config/wslab-keys"
+REPO=https://github.com/sahiixx/weightspace-research-lab
+COMMIT=$(git rev-parse HEAD)  # 40-character commit SHA
+
 python -m wslab init --out runs/manual/base.pt
-python -m wslab inspect --checkpoint runs/manual/base.pt
 python -m wslab propose --checkpoint runs/manual/base.pt --out runs/manual/patch.json
-python -m wslab apply --checkpoint runs/manual/base.pt --patch runs/manual/patch.json --out runs/manual/patched.pt
-python -m wslab benchmark --checkpoint runs/manual/base.pt --split test
-python -m wslab benchmark --checkpoint runs/manual/patched.pt --split test
-python -m wslab verify --base runs/manual/base.pt --patched runs/manual/patched.pt --patch runs/manual/patch.json
+
+python -m wslab keygen \
+  --private-key "$HOME/.config/wslab-keys/approver.pem" \
+  --trust-store "$HOME/.config/wslab-keys/trusted.json" \
+  --key-id local-reviewer --source-repo "$REPO"
+
+python -m wslab sign --patch runs/manual/patch.json \
+  --private-key "$HOME/.config/wslab-keys/approver.pem" \
+  --key-id local-reviewer --actor local-researcher \
+  --source-repo "$REPO" --source-commit "$COMMIT" \
+  --out runs/manual/signed_patch.json
+
+python -m wslab apply --checkpoint runs/manual/base.pt \
+  --patch runs/manual/signed_patch.json \
+  --trusted-keys "$HOME/.config/wslab-keys/trusted.json" \
+  --root "$(pwd)" --out runs/manual/approved.pt
+
+python -m wslab benchmark --checkpoint runs/manual/approved.pt --split test
 ```
 
-Keep the default `--seed` and `--count` the same between `propose` and `apply`, since the acceptance gate must use the same declared validation protocol. Never select a candidate on the test split. The tool does not make API calls, train anything, or require weights downloads.
+`sign` and `apply` must use identical `--seed` and `--count` (defaults 42 and 2048), because the signed envelope binds the *actual deterministic validation samples* and generation settings. Signer names and source commits are signed claims, not independent identity/GitHub attestation. The `--root` option confines the approved output to an explicitly selected trusted directory. Existing outputs are never silently overwritten.
+
+### Sign and verify the audit evidence
+
+After `python -m wslab pipeline --out runs/demo`, an operator can attach an Ed25519 signature to the evidence manifest:
+
+```bash
+python -m wslab audit-sign --manifest runs/demo/audit_manifest.json \
+  --private-key "$HOME/.config/wslab-keys/approver.pem" \
+  --key-id local-reviewer --source-repo "$REPO" --source-commit "$COMMIT" \
+  --out runs/demo/audit_signed.json
+python -m wslab audit-verify --manifest runs/demo/audit_manifest.json \
+  --attestation runs/demo/audit_signed.json \
+  --trusted-keys "$HOME/.config/wslab-keys/trusted.json" --root runs/demo
+```
+
+For accidental misuse, `wslab apply` **refuses raw unsigned `patch.json`**. The separate `wslab verify` command is a **mathematical exact-edit check**, not a signer approval.
 
 ## Publish to GitHub
 
@@ -87,9 +131,12 @@ The container uses a PyTorch **CPU wheel**, runs without networking at runtime, 
 | `pipeline` | Generate base checkpoint, search patch, safety-check, score, and write reports |
 | `init` | Save deliberately corrupted starting checkpoint |
 | `propose` | Evaluate a fixed bounded set of candidate edits using *validation only* |
-| `apply` | Check patch schema, bounds, fingerprint and validation improvement, then save new checkpoint |
+| `apply` | Verify trusted Ed25519 signature, provenance, validation dataset and local policy, then save approved checkpoint |
 | `benchmark` | Score an existing checkpoint on validation, test or audit split |
 | `inspect` | Show tensor shapes and a canonical SHA-256 fingerprint |
+| `keygen` | Generate an Ed25519 private signing key and initial public-key trust policy |
+| `sign` | Sign exact patch bytes and provenance metadata for approval |
+| `audit-sign` / `audit-verify` | Sign and validate an evidence manifest and its artifact hashes |
 | `verify` | Rebuild expected edit from base and compare *every* tensor against the supplied patch checkpoint |
 | `sweep` | Repeat validation-only patch selection across multiple seeds, then score independent test/audit splits |
 | `negative-controls` | Deliberately attempt unsafe edits and write rejection evidence |
@@ -104,7 +151,7 @@ The classifier encodes the synthetic rule `y = (2*x0 + x1 > 0)` with two linear 
 
 Stale base fingerprint; unknown tensor; invalid or repeated index; wrong old value; no-op patch; nonfinite values; overly large per-element changes; too many edits; validation accuracy not improving sufficiently; predefined subgroup regression. All proposed tensor changes occur in a deep copy until the proposal clears validation. `verify` checks the complete output state against the exact approved edit; it rejects unlisted modifications.
 
-These controls are **not** cryptographic signing, sandboxed model execution, model security certification, fairness guarantees, or a production multi-tenant authorization system. They demonstrate useful safeguards in a limited, trusted local workflow.
+The original arithmetic controls alone are **not** signer authorization. Version 0.4 adds Ed25519 signing for *manual CLI approvals*, not to the automatically generated educational patch. It is still not sandboxed model execution, model security certification, fairness guarantees, or a production multi-tenant authorization system. They demonstrate useful safeguards in a limited, trusted local workflow.
 
 ## Optional: verify the real published Qwen checkpoint
 
@@ -112,7 +159,7 @@ The official `RikiyaT/Qwen3.5-0.8B-weight-space-programming` model is ~1.8 GB an
 
 ```bash
 # Inspect the full primary logs and official code without downloading model weights
-bash scripts/get_official_resources.sh
+OFFICIAL_LOGS_COMMIT=<independently-verified-40-hex-commit> bash scripts/get_official_resources.sh
 
 # Optional: install extra dependencies
 python -m pip install -e '.[official]'
