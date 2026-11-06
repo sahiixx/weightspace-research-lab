@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "weightspace-research-lab"
-version = "0.5.0"
+version = "0.6.0"
 description = "Reproducible, gradient-free weight-editing laboratory (toy experiment + optional official research verification)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ authors = [{name = "Weight-Space Research Lab contributors"}]
 dependencies = ["torch>=2.3,<3", "numpy>=1.26,<3", "cryptography>=43,<48"]
 
 [project.optional-dependencies]
-test = ["pytest>=8,<10"]
+test = ["pytest>=8,<10", "safetensors>=0.4,<1"]
 official = ["safetensors>=0.4", "huggingface-hub>=1.0,<2"]
 
 [project.scripts]

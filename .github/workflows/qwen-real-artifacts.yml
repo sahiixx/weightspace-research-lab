@@ -1,0 +1,63 @@
+name: Qwen real-checkpoint reconstruction (CPU, downloads ~4GB)
+
+# The first push to the verification branch deliberately runs an independent
+# CPU checkpoint check. This does NOT run an LLM or charge for GPU compute.
+on:
+  push:
+    branches:
+      - research/qwen-real-reproduction-v0.6
+    paths:
+      - 'scripts/qwen_*'
+      - '.github/workflows/qwen-real-artifacts.yml'
+      - 'tests/test_real_qwen_tooling.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qwen-real-artifacts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-weights:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HF_HUB_DISABLE_TELEMETRY: '1'
+      OMP_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU-only verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'numpy>=1.26,<3' 'safetensors>=0.4,<1' 'huggingface_hub>=1.0,<2'
+      - name: Download locked public patch logs (no scripts executed)
+        env:
+          OFFICIAL_LOGS_COMMIT: 4d09ba6d6a7e891dd8063974dfe81b3d78e3494f
+        run: bash scripts/get_official_resources.sh
+      - name: Download pinned public base/edited Qwen and dataset snapshots
+        run: python scripts/qwen_fetch_pinned.py --root '${{ runner.temp }}/qwen-real'
+      - name: Independently compare all weights and reconstruct sparse BF16 edit
+        run: |
+          mkdir -p runs/real-checkpoint
+          python scripts/qwen_weight_verify.py \
+            --base-dir '${{ runner.temp }}/qwen-real/base' \
+            --edited-dir '${{ runner.temp }}/qwen-real/edited' \
+            --patch-manifest 'external/lm_understand-logs/exp8_math/runs/p50c/edit/manifest.json' \
+            --patch-npz 'external/lm_understand-logs/exp8_math/runs/p50c/edit/edit.npz' \
+            --out runs/real-checkpoint/verified.json
+          cp '${{ runner.temp }}/qwen-real/source-pins.json' runs/real-checkpoint/source-pins.json
+      - name: Upload small provenance report (never upload model weights)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qwen-real-checkpoint-evidence-${{ github.run_id }}
+          path: runs/real-checkpoint/*.json
+          if-no-files-found: warn
+          retention-days: 14

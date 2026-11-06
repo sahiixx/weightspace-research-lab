@@ -23,3 +23,14 @@
 ## v0.5 supplemental verification
 
 See `docs/V0_5_VALIDATION.md` for the new 61-test local run, SAHIIXX Trust Core independent-package installation, Codex unsigned tool workflow and Qwen CPU preflight. This supersedes the original test count for the new release, but not the historic results described above. No GPU benchmark was run.
+
+## v0.6 verification boundary
+
+- Independent BF16 edit-reconstruction verifier and negative test fixtures.
+- Separate CPU (public model download, all tensor comparison) and opt-in GPU
+  evaluation GitHub Actions workflows.
+- Do not mark checkpoint verification passed until the CPU artifact job actually
+  downloads both source model snapshots and finishes successfully.
+- Do not mark paper benchmark reproduced until a full GPU run generates paired
+  sample artifacts, their report passes the comparison verifier, and an
+  authorized reviewer signs the final evidence outside the agent/CI host.

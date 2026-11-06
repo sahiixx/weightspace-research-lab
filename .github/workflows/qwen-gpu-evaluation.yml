@@ -1,0 +1,82 @@
+name: Qwen paired MATH-500 benchmark (manual GPU only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'smoke: 5 items x 1 x 512; full: 500 items x 4 x 32768'
+        type: choice
+        options:
+          - smoke
+          - full
+        default: smoke
+        required: true
+      protocol:
+        description: 'think35 is the headline paper protocol; nothink35 is a separate decoding control'
+        type: choice
+        options:
+          - think35
+          - nothink35
+        default: think35
+        required: true
+
+# NEVER run on pull requests or push; do not put signer secrets on this runner.
+# Requires an independently provisioned GPU-capable self-hosted runner labelled qwen-gpu.
+permissions:
+  contents: read
+
+concurrency:
+  group: qwen-gpu-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: [self-hosted, linux, x64, qwen-gpu]
+    timeout-minutes: 360
+    env:
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify GPU access
+        run: |
+          nvidia-smi
+          python -c 'import torch; assert torch.cuda.is_available(), "CUDA GPU required"'
+      - name: Install reproducible evaluator dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy>=1.26,<3' 'safetensors>=0.4,<1' 'huggingface_hub>=1,<2' 'math-verify==0.9.0' 'transformers>=5'
+          python -m pip install 'vllm'
+      - name: Download pinned models and dataset
+        run: python scripts/qwen_fetch_pinned.py --root '${{ runner.temp }}/qwen-real'
+      - name: Run baseline inference
+        run: |
+          python scripts/qwen_gpu_eval.py --model '${{ runner.temp }}/qwen-real/base' \
+             --dataset '${{ runner.temp }}/qwen-real/dataset/test.jsonl' \
+             --source-pins '${{ runner.temp }}/qwen-real/source-pins.json' \
+             --model-tag base --protocol '${{ inputs.protocol }}' --mode '${{ inputs.mode }}' --output runs/qwen-gpu-base
+      - name: Run edited model inference with identical settings
+        run: |
+          python scripts/qwen_gpu_eval.py --model '${{ runner.temp }}/qwen-real/edited' \
+             --dataset '${{ runner.temp }}/qwen-real/dataset/test.jsonl' \
+             --source-pins '${{ runner.temp }}/qwen-real/source-pins.json' \
+             --model-tag edited --protocol '${{ inputs.protocol }}' --mode '${{ inputs.mode }}' --output runs/qwen-gpu-edited
+      - name: Produce unsigned paired comparison
+        run: |
+          python scripts/qwen_evidence.py compare --base runs/qwen-gpu-base/report.json \
+             --edited runs/qwen-gpu-edited/report.json --out runs/qwen-gpu-comparison.json
+      - name: Upload evaluation data (human must independently approve/sign)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qwen-gpu-comparison-${{ github.run_id }}
+          path: |
+            runs/qwen-gpu-base/report.json
+            runs/qwen-gpu-edited/report.json
+            runs/qwen-gpu-comparison.json
+            runs/qwen-gpu-base/generations.jsonl.gz
+            runs/qwen-gpu-edited/generations.jsonl.gz
+          if-no-files-found: warn
+          retention-days: 7
