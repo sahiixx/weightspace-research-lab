@@ -219,3 +219,13 @@ This lab's original source code and documentation are MIT-licensed (`LICENSE`). 
 Research: https://rikiyat.github.io/blog/weight-space-programming/
 Primary logs: https://github.com/RikiyaT/lm_understand-logs
 Official edited checkpoint: https://huggingface.co/RikiyaT/Qwen3.5-0.8B-weight-space-programming
+
+## v0.5 research and governance extensions
+
+This release adds three **separate** paths instead of claiming that a local toy score establishes model-scale weight editing:
+
+1. **Qwen Experiment-8 evidence:** `python scripts/qwen_reproduction.py preflight --out runs/qwen-preflight.json`. The preflight checks runtime capabilities and records the pinned Qwen base revision. `published-logs` checks upstream *reported summaries* at an independently verified pinned logs commit; it is explicitly **not** a GPU benchmark or independent model reproduction. The original reconstruction entrypoint remains `scripts/rebuild_official.sh`, requiring external weights and logs.
+2. **Standalone `sahiixx-trust-core` SDK:** `python -m pip install -e packages/sahiixx_trust_core`, with Ed25519-domain-separated approval envelopes, allowlisted signer policy and event hash chains. It has **no PyTorch dependency**. The v0.4 WSLab signing implementation remains in place pending a compatibility migration; do not mix envelope formats. See `packages/sahiixx_trust_core/README.md`.
+3. **Codex proposal tools:** See `AGENTS.md`, `.agents/skills/weightspace-proposal/SKILL.md` and `docs/CODEX_APPROVAL.md`. Agent can propose/inspect only. A separately controlled human operator, not the agent, runs `wslab sign` and `wslab apply` with a protected signing key.
+
+See `docs/V0_5_SCOPE.md` for exact completed and missing verification. No real Qwen checkpoint or GPU benchmark is bundled or run by CI.

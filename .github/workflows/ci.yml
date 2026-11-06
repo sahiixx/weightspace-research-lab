@@ -31,6 +31,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -e '.[test]'
+          python -m pip install -e packages/sahiixx_trust_core
+      - name: Qwen reproduction preflight (no GPU or download)
+        run: python scripts/qwen_reproduction.py preflight --out qwen-preflight.json
       - name: Complete deterministic smoke and audit
         run: bash scripts/run_all.sh runs/ci-audit
       - name: Upload reports for review

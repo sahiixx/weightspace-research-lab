@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sahiixx-trust-core"
+version = "0.1.0"
+description = "Framework-agnostic Ed25519 approval envelopes and audit chains"
+requires-python = ">=3.10"
+dependencies = ["cryptography>=43,<48"]
+license = {text = "MIT"}
+readme = "README.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
