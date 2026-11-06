@@ -1,0 +1,44 @@
+{
+  "base_repo": "Qwen/Qwen3.5-0.8B",
+  "base_revision": "2fc06364715b967f1860aea9cf38778875588b17",
+  "changed_bf16_entries": 130188,
+  "changed_tensor_names": [
+    "model.language_model.layers.15.mlp.down_proj.weight",
+    "model.language_model.layers.19.mlp.down_proj.weight"
+  ],
+  "dataset_revision": "6e4ed1a2a79af7d8630a6b768ec859cb5af4d3be",
+  "edited_repo": "RikiyaT/Qwen3.5-0.8B-weight-space-programming",
+  "kind": "real_checkpoint_bitwise_reconstruction_no_inference",
+  "logs_commit": "4d09ba6d6a7e891dd8063974dfe81b3d78e3494f",
+  "not_verified": [
+    "GPU inference",
+    "MATH-500 performance",
+    "author's editing agent trajectory",
+    "checkpoint publisher identity beyond pinned source"
+  ],
+  "schema_version": 1,
+  "tensor_count": 488,
+  "tensors": {
+    "model.language_model.layers.15.mlp.down_proj.weight": {
+      "base_sha256": "ef60d2c687bab19464dca9c8bfd7777e46ad226df0c9e25643b0bab04b5a1cca",
+      "changed_entries": 65260,
+      "edited_sha256": "82e2d733ea64feaeb4af93a1e065641d3df98b494a8b7576ef2f52e90fe2ee53",
+      "shape": [
+        1024,
+        3584
+      ]
+    },
+    "model.language_model.layers.19.mlp.down_proj.weight": {
+      "base_sha256": "638eedeb701b94aa861f4438e615c07ec6c60ee703db1bfee2de577bb6498c3e",
+      "changed_entries": 64928,
+      "edited_sha256": "8ef3c61bc36af113ad58e89dbb0a4a14dcba5a45cb750c15ab515c82ddd12eb2",
+      "shape": [
+        1024,
+        3584
+      ]
+    }
+  },
+  "time_utc": "2026-11-06T10:51:21.848921+00:00",
+  "upstream_patch_manifest_sha256": "83185c1db46e3dafb34af645f8c5ce033c09cc99d4512b9e1b8e3aba9d269225",
+  "upstream_patch_npz_sha256": "e92a92aafd1f1068b4fd94aa0fbe081ba3ddea2047ee7bcac7161d861be299e7"
+}
