@@ -37,7 +37,7 @@ def propose(base: dict[str, torch.Tensor], validation: Samples,
             "base_sha256": fingerprint(base),
             "method": "bounded-coordinate-grid-search-not-llm",
             "edits": [{"tensor": TARGET_TENSOR, "index": TARGET_INDEX,
-                       "from": before, "to": value,
+                       "from": before, "to": value, "dtype": "torch.float32", "device": "cpu",
                        "reason": "Candidate assessed on synthetic validation samples"}],
         }
         try:

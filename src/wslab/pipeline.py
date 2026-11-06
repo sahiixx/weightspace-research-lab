@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from .io_safety import safe_write_bytes
+from .data import dataset_manifest
+from .evidence import build_audit_manifest, verify_audit_manifest
 import platform
 import sys
 import torch
@@ -61,13 +64,13 @@ def run_pipeline(out: str | Path, seed: int = 42, count: int = 2048) -> dict:
     test = samples("test", seed=seed, count=count)
     reference = reference_model().state_dict()
     original = corrupted_model().state_dict()
-    save_checkpoint(out / "base.pt", original)
+    save_checkpoint(out / "base.pt", original, root=out)
     patch, search_report = propose(original, validation)
-    write_json(out / "patch.json", patch)
+    write_json(out / "patch.json", patch, root=out)
     edited = apply_checked(original, patch)
     validation_gate(evaluate(model_from_state(original), validation),
                     evaluate(model_from_state(edited), validation))
-    save_checkpoint(out / "patched.pt", edited)
+    save_checkpoint(out / "patched.pt", edited, root=out)
     verification = verify_exact(load_checkpoint(out / "base.pt"),
                                 load_checkpoint(out / "patched.pt"), patch)
     report = {
@@ -83,6 +86,22 @@ def run_pipeline(out: str | Path, seed: int = 42, count: int = 2048) -> dict:
         "verification": verification,
         "notes": ["Synthetic deterministic task, not an LLM edit", "Test split never used for candidate selection"],
     }
-    write_json(out / "report.json", report)
-    (out / "report.md").write_text(format_report(report), encoding="utf-8")
+    run_datasets = {split: dataset_manifest(draw, seed=seed, count=count)
+                    for split, draw in (("validation", validation), ("test", test))}
+    write_json(out / "dataset_manifest.json", {"schema_version": 1, "splits": run_datasets}, root=out)
+    report["validation_dataset_sha256"] = run_datasets["validation"]["sha256"]
+    write_json(out / "report.json", report, root=out)
+    safe_write_bytes(out / "report.md", format_report(report).encode("utf-8"), root=out)
+    events = [
+        {"name": "candidate_selected", "data": {"candidate_count": search_report["candidates_evaluated"],
+                                                   "validation_dataset_sha256": run_datasets["validation"]["sha256"]}},
+        {"name": "validation_gate_passed", "data": {"base": report["base"]["validation"]["accuracy"],
+                                                      "candidate": report["patched"]["validation"]["accuracy"]}},
+        {"name": "checkpoint_persisted", "data": verification},
+    ]
+    audit = build_audit_manifest(out, events,
+                                 ["base.pt", "patched.pt", "patch.json", "report.json", "report.md", "dataset_manifest.json"])
+    write_json(out / "audit_manifest.json", audit, root=out)
+    if not verify_audit_manifest(out, audit):
+        raise RuntimeError("Generated artifacts do not match the audit manifest")
     return report

@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import io
 from pathlib import Path
 import torch
 from .models import ToyClassifier
+from .io_safety import safe_read_bytes, safe_write_bytes
 
 
 def clone_state(state: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
@@ -32,14 +34,15 @@ def fingerprint(state: dict[str, torch.Tensor]) -> str:
     return digest.hexdigest()
 
 
-def save_checkpoint(path: str | Path, state: dict[str, torch.Tensor]) -> None:
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(clone_state(state), path)
+def save_checkpoint(path: str | Path, state: dict[str, torch.Tensor], *,
+                    root: str | Path | None = None) -> None:
+    stream = io.BytesIO()
+    torch.save(clone_state(state), stream)
+    safe_write_bytes(path, stream.getvalue(), root=root)
 
 
-def load_checkpoint(path: str | Path) -> dict[str, torch.Tensor]:
-    obj = torch.load(Path(path), map_location="cpu", weights_only=True)
+def load_checkpoint(path: str | Path, *, root: str | Path | None = None) -> dict[str, torch.Tensor]:
+    obj = torch.load(io.BytesIO(safe_read_bytes(path, root=root)), map_location="cpu", weights_only=True)
     if not isinstance(obj, dict) or any(not isinstance(k, str) or not isinstance(v, torch.Tensor)
                                         for k, v in obj.items()):
         raise ValueError("Checkpoint must contain a tensor-only state_dict")
@@ -50,16 +53,25 @@ def load_checkpoint(path: str | Path) -> dict[str, torch.Tensor]:
     return clone_state(obj)
 
 
-def write_json(path: str | Path, value: dict) -> None:
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+def write_json(path: str | Path, value: dict, *,
+               root: str | Path | None = None) -> None:
+    encoded = (json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
+    safe_write_bytes(path, encoded, root=root)
 
 
-def read_json(path: str | Path) -> dict:
+def read_json(path: str | Path, *, root: str | Path | None = None) -> dict:
     def reject_constant(value: str) -> None:
         raise ValueError(f"Non-finite JSON constant {value} is forbidden")
-    obj = json.loads(Path(path).read_text(encoding="utf-8"), parse_constant=reject_constant)
+    def reject_duplicates(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError(f"Duplicate JSON key: {key!r}")
+            value[key] = item
+        return value
+    raw = safe_read_bytes(path, root=root, max_bytes=2 * 1024 * 1024)
+    obj = json.loads(raw.decode("utf-8"), parse_constant=reject_constant,
+                     object_pairs_hook=reject_duplicates)
     if not isinstance(obj, dict):
         raise ValueError("Expected a JSON object")
     return obj

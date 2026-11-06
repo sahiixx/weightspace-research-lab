@@ -11,6 +11,7 @@ from statistics import mean
 
 from .benchmarks import evaluate
 from .checkpoints import fingerprint, write_json
+from .io_safety import safe_write_bytes
 from .data import samples
 from .models import corrupted_model, model_from_state
 from .pipeline import verify_exact
@@ -67,7 +68,7 @@ def run_sweep(out: str | Path, base_seed: int = 42, seeds: int = 12, count: int 
     lines += ['', '- No test/audit observations were consulted in patch selection.',
               '- The rule and the corrupt coordinate are known by construction.',
               '- Perfect outcomes on this synthetic rule do not imply real-world generalization.', '']
-    (out / 'sweep.md').write_text('\n'.join(lines), encoding='utf-8')
+    safe_write_bytes(out / 'sweep.md', '\n'.join(lines).encode('utf-8'), root=out)
     return report
 
 
@@ -130,5 +131,5 @@ def run_negative_controls(out: str | Path) -> dict:
         lines.append(f"| {row['case']} | {'REJECTED' if row['rejected'] else 'ACCEPTED (FAIL)'} |")
     lines.extend(['', 'The starting checkpoint hash remained unchanged.',
                   '**Limitation:** This is a targeted regression suite, not a full threat-model assessment.', ''])
-    (out / 'negative_controls.md').write_text('\n'.join(lines), encoding='utf-8')
+    safe_write_bytes(out / 'negative_controls.md', '\n'.join(lines).encode('utf-8'), root=out)
     return report
