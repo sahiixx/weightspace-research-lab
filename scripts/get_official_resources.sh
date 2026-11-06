@@ -1,13 +1,25 @@
 #!/usr/bin/env bash
-# Explicitly requested optional download of the public official log repository.
-# The local toy demo never contacts the internet.
+# Optional external research logs. Do not fetch arbitrary moving refs.
+# User must obtain the 40-char commit SHA through an independently trusted channel.
 set -euo pipefail
-mkdir -p external
-if [[ -e external/lm_understand-logs ]]; then
-  echo 'external/lm_understand-logs already exists; inspect it before updating.' >&2
+PIN="${OFFICIAL_LOGS_COMMIT:-}"
+if [[ ! "$PIN" =~ ^[0-9a-f]{40}$ ]]; then
+  echo 'Set OFFICIAL_LOGS_COMMIT to an independently verified 40-character Git commit SHA.' >&2
+  exit 2
+fi
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+DEST="$ROOT/external/lm_understand-logs"
+if [[ -e "$DEST" || -L "$DEST" ]]; then
+  echo "Refusing to overwrite existing external resource: $DEST" >&2
+  exit 2
+fi
+mkdir -p "$ROOT/external"
+git clone --no-checkout --filter=blob:none \
+  https://github.com/RikiyaT/lm_understand-logs.git "$DEST"
+git -C "$DEST" fetch --depth 1 origin "$PIN"
+git -C "$DEST" checkout --detach "$PIN"
+if [[ "$(git -C "$DEST" rev-parse HEAD)" != "$PIN" ]]; then
+  echo 'Downloaded research log commit mismatch' >&2
   exit 1
 fi
-git clone --depth 1 https://github.com/RikiyaT/lm_understand-logs.git external/lm_understand-logs
-printf '\nNext: read external/lm_understand-logs/exp8_math/README.md\n'
-printf 'For rebuilding the official Qwen edit, follow exp8_math/code/apply_edit.py\n'
-printf 'The official 32k-token multi-sample benchmark requires substantial GPU resources.\n'
+printf 'Research logs pinned to %s. Review them before running any code.\n' "$PIN"

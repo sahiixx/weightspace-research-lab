@@ -4,7 +4,7 @@ This guide is a pointer to the **original authors' published code**, not a secon
 
 ## A. Rebuild the published weight diff (research-scale, optional)
 
-1. Run `bash scripts/get_official_resources.sh` to get the real `RikiyaT/lm_understand-logs` repository into `external/`.
+1. Run `OFFICIAL_LOGS_COMMIT=<independently-verified-40-hex-commit> bash scripts/get_official_resources.sh` to get the real `RikiyaT/lm_understand-logs` repository into `external/`.
 2. Read `external/lm_understand-logs/exp8_math/README.md`, particularly "The weight edits".
 3. For the 50-pass Qwen experiment, the patch manifest and diff are at `exp8_math/runs/p50c/edit/` and the official reconstruction script is `exp8_math/code/apply_edit.py`.
 4. Obtain the original `Qwen/Qwen3.5-0.8B` at revision `2fc06364715b967f1860aea9cf38778875588b17` as the experiment specifies. The editing logs and diff do not make the underlying model weight download optional for actual reconstruction.

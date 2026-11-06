@@ -1,19 +1,21 @@
-# Local validation summary
+# Weight-Space Research Lab v0.4: hardening validation
 
-Date: **2026-11-05**. See [docs/EXECUTION_REPORT.md](docs/EXECUTION_REPORT.md)
-for commands, environment and explicitly unexecuted reproduction work.
+**Date:** 2026-11-06  
+**Environment:** Python 3.13, PyTorch 2.10 CPU, cryptography 46, Linux  
+**Claim scope:** educational toy weight-editing and local signer-policy workflow, **not** production model security certification.
 
-- **31/31 automated tests passed** (including offline GitHub delivery checks).
-- Source compiled (`compileall`), and all offline CLI workflows completed.
-- Synthetic full pipeline: 65.48% holdout baseline -> 100.00% repaired.
-- Exact checkpoint verification: **one edited scalar**, unchanged initial tensor state.
-- 12 independent deterministic seed runs: mean test accuracy 64.71% -> 100.00%.
-- **10/10** deliberately unsafe or regressive patch proposals rejected.
-- Docker execution: **not tested**, CLI unavailable.
-- Official Qwen checkpoint download/hash or GPU benchmarking: **not tested**, no outbound DNS or CUDA.
+## Completed local checks
 
-These results are **toy-model results** and do not reproduce the published Qwen benchmark.
+- Existing compatibility tests: **31/31 passed**, run with `PYTHONPATH=src OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 pytest -q` over the six original test files.
+- Newly added trust-boundary tests: **21/21 passed** (`pytest -q tests/test_trust_boundaries.py`).
+- Total: **52 tests passed** in separately executed batches.
+- Offline full pipeline: generated `runs/hardened-demo/`, checkpoint, unsigned toy patch, dataset manifest, evidence hash-chain and report (256 samples/split). Local test accuracy baseline **60.55%**, patched **100.00%**; these are purely toy data.
+- Negative controls: **10/10 rejected**; base checkpoint unmodified.
+- Authentication tests: signed roundtrip, post-signature tampering rejection, signer revocation, source allowlist, dataset mismatch, unsigned CLI rejection, float32 representability, path traversal, symlinks, no-clobber, duplicate JSON fields, and signed audit evidence tampering.
 
-## GitHub-ready packaging (v0.3.0)
+## Not verified / limitations
 
-The project contains `scripts/publish_to_github.sh`, a GitHub Actions workflow with read-only permissions, and `docs/GITHUB_PUBLISH.md`. Source packaging and local Git history do not imply that the repository was created, pushed, or that GitHub Actions completed. Check the actual destination repository and its workflow runs after publishing.
+- Live GitHub Actions v0.4 CI is unverified until the branch runs on GitHub.
+- Docker runtime was not executed locally; config is provided for external validation.
+- Live Qwen checkpoint reconstruction, model downloads and GPU benchmarks were **not** executed.
+- Signed assertions are only as trustworthy as the protected signer key, source code, and trust-store policy. Signed provenance is not independent source-commit verification or human-identity proof. Evidence chaining is not immutable without independent protected storage.
