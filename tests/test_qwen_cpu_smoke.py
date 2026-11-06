@@ -59,3 +59,9 @@ def test_pinned_downloader_copies_required_processor_configs():
     downloader = (SCRIPT.parent / "qwen_fetch_pinned.py").read_text()
     assert '"preprocessor_config.json"' in downloader
     assert '"processor_config.json"' in downloader
+
+
+def test_cpu_workflow_installs_multimodal_dependencies():
+    workflow = (SCRIPT.parent.parent / ".github/workflows/qwen-cpu-inference-smoke.yml").read_text()
+    assert "torch==2.6.0 torchvision==0.21.0" in workflow
+    assert 'permissions:\n  contents: read' in workflow
