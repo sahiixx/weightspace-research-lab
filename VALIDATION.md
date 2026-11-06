@@ -19,3 +19,7 @@
 - Docker runtime was not executed locally; config is provided for external validation.
 - Live Qwen checkpoint reconstruction, model downloads and GPU benchmarks were **not** executed.
 - Signed assertions are only as trustworthy as the protected signer key, source code, and trust-store policy. Signed provenance is not independent source-commit verification or human-identity proof. Evidence chaining is not immutable without independent protected storage.
+
+## v0.5 supplemental verification
+
+See `docs/V0_5_VALIDATION.md` for the new 61-test local run, SAHIIXX Trust Core independent-package installation, Codex unsigned tool workflow and Qwen CPU preflight. This supersedes the original test count for the new release, but not the historic results described above. No GPU benchmark was run.
