@@ -1,5 +1,6 @@
 """Offline publication policy checks; never access GitHub in tests."""
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -33,5 +34,8 @@ def test_git_publisher_refuses_invalid_visibility_without_network():
 def test_github_ci_is_explicitly_read_only():
     workflow = (ROOT / '.github' / 'workflows' / 'ci.yml').read_text()
     assert 'permissions:\n  contents: read' in workflow
-    assert 'actions/upload-artifact@v4' in workflow
+    assert 'actions/upload-artifact@' in workflow
+    action_refs = re.findall(r'uses:\s+(\S+)', workflow)
+    assert action_refs
+    assert all(re.fullmatch(r'actions/[a-z-]+@[0-9a-f]{40}', ref) for ref in action_refs)
     assert 'bash scripts/run_all.sh runs/ci-audit' in workflow
