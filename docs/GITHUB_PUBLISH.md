@@ -18,11 +18,18 @@ If the repository already exists and is empty, the script pushes there. If it co
 
 ## What CI proves
 
+- Files listed in `SHA256SUMS.txt` match their recorded hashes before dependency installation; missing files, mismatches, and malformed checksum entries fail CI.
 - Tests, syntax compilation and synthetic experiments can execute on GitHub-hosted CPU runners.
 - Reproducible 12-seed sweep, toy-model patch verification, and rejection controls run automatically.
 - Report artifacts are viewable for 14 days.
 
 CI does *not* download Qwen model weights or replicate MATH-500, GSM8K or IFEval research scores. Reproducing those claims requires the correct models, evaluation harness, datasets, parameter versions and a capable GPU environment.
+
+After an intentional change to a listed file, review the change and update its
+manifest entry in the same commit. The manifest records Git's LF source bytes;
+check an LF checkout with `sha256sum --check --strict SHA256SUMS.txt`.
+This check detects drift in listed files; it does not authenticate the manifest
+or check coverage of newly added files.
 
 ## Action runtimes and runner compatibility
 
