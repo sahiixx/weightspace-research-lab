@@ -24,6 +24,17 @@ If the repository already exists and is empty, the script pushes there. If it co
 
 CI does *not* download Qwen model weights or replicate MATH-500, GSM8K or IFEval research scores. Reproducing those claims requires the correct models, evaluation harness, datasets, parameter versions and a capable GPU environment.
 
+## Action runtimes and runner compatibility
+
+All four workflows pin the Node.js 24 releases of `actions/checkout` (v7.0.1),
+`actions/setup-python` (v7.1.0), and `actions/upload-artifact` (v7.0.2) to full
+commit SHAs. Version comments identify the reviewed release; updating an action
+requires reviewing its release and updating the SHA and source checksum manifest.
+
+Self-hosted runners, including the optional `qwen-gpu` runner, must use Actions
+Runner v2.327.1 or newer for Node.js 24 support. Artifact uploads retain ZIP
+packaging, existing file selections, and the configured retention periods.
+
 ## Recommended GitHub repository settings
 
 Keep the initial project private until you have reviewed the research documentation and third-party license references. Enable branch protection or a ruleset requiring the `verify` job, and review workflow permission scopes before allowing contributions. `ci.yml` requests only `contents: read`. The lab has no credentials embedded in source code.
