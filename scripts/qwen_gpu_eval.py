@@ -116,7 +116,11 @@ def evaluate(model: Path, dataset: Path, output: Path, mode: str, *,
     with gzip.open(output / "generations.jsonl.gz", "wt", encoding="utf-8") as sink:
         for start in range(0, len(prompts), 10):
             results = engine.generate(prompts[start:start + 10], sampling, use_tqdm=False)
+            if len(results) != len(prompts[start:start + 10]):
+                raise ValueError("Unexpected generation count: one result per problem is required")
             for case_offset, (case, response) in enumerate(zip(cases[start:start + 10], results)):
+                if len(response.outputs) != config["samples_per_problem"]:
+                    raise ValueError("Unexpected generation count: samples per problem differ from the protocol")
                 for sample_index, response_item in enumerate(response.outputs):
                     text = response_item.text
                     pred = last_boxed(text)

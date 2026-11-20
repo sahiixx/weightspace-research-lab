@@ -20,6 +20,41 @@ def read_report(path: Path) -> dict:
     return result
 
 
+def validate_samples(report: dict) -> list[tuple[str, int]]:
+    """Require the complete problem/sample grid for the declared run mode."""
+    protocol = report.get("protocol")
+    dimensions = {"smoke": (5, 1), "full": (500, 4)}
+    if type(protocol) is not dict or type(protocol.get("mode")) is not str or protocol["mode"] not in dimensions:
+        raise ValueError("Unsupported evaluation mode")
+    problems, per_problem = dimensions[protocol["mode"]]
+    if (type(protocol.get("problems")) is not int or protocol["problems"] != problems
+            or type(protocol.get("samples_per_problem")) is not int
+            or protocol["samples_per_problem"] != per_problem):
+        raise ValueError("Evaluation dimensions do not match the declared mode")
+    samples = report.get("samples")
+    expected = problems * per_problem
+    if type(samples) is not list or len(samples) != expected:
+        raise ValueError(f"Incomplete evaluation: expected exactly {expected} samples")
+    if type(report.get("count")) is not int or report["count"] != expected:
+        raise ValueError("Evaluation reported count does not match its samples")
+    keys = []
+    coverage = {}
+    for row in samples:
+        if (type(row) is not dict or type(row.get("id")) is not str or not row["id"]
+                or type(row.get("sample_index")) is not int
+                or not 0 <= row["sample_index"] < per_problem):
+            raise ValueError("Invalid sample identity")
+        key = (row["id"], row["sample_index"])
+        keys.append(key)
+        coverage.setdefault(row["id"], set()).add(row["sample_index"])
+    if len(set(keys)) != len(keys):
+        raise ValueError("Sample IDs and indices are not exactly aligned: duplicates found")
+    expected_indices = set(range(per_problem))
+    if len(coverage) != problems or any(indices != expected_indices for indices in coverage.values()):
+        raise ValueError("Incomplete problem/sample coverage")
+    return keys
+
+
 def compare(base: dict, edited: dict, *, weight_report: dict | None = None) -> dict:
     if base.get("kind") != "actual_gpu_inference_evaluation" or edited.get("kind") != "actual_gpu_inference_evaluation":
         raise ValueError("Both inputs must come from actual GPU inference; no preflight or published-log reports")
@@ -34,9 +69,8 @@ def compare(base: dict, edited: dict, *, weight_report: dict | None = None) -> d
     a, b = base.get("samples"), edited.get("samples")
     if type(a) is not list or type(b) is not list or not a or len(a) != len(b):
         raise ValueError("Mismatch in sample counts")
-    keys_a = [(r.get("id"), r.get("sample_index")) for r in a]
-    keys_b = [(r.get("id"), r.get("sample_index")) for r in b]
-    if keys_a != keys_b or len(set(keys_a)) != len(keys_a):
+    keys_a, keys_b = validate_samples(base), validate_samples(edited)
+    if keys_a != keys_b:
         raise ValueError("Sample IDs and indices are not exactly aligned")
     if any(type(row.get("correct")) is not bool or type(row.get("limit_hit")) is not bool for row in a + b):
         raise ValueError("Invalid sample metrics")

@@ -67,6 +67,16 @@ For comparable full benchmarks, substitute `--mode full` for both models: this u
 
 A separate decoding control is available as `--protocol nothink35` for *both* arms. That switches to non-thinking, temperature 0.7, top-p 0.8 and an 8,192-token full-mode cap. Keep these runs as a distinct comparison; never mix their scores with `think35`.
 
+Paired comparisons require complete runs: smoke is exactly five problems with
+one sample each; full is exactly 500 problems with four samples each. The
+reported count must match the samples, each problem must have every expected
+integer sample index exactly once, and both arms must align. Two equally
+truncated reports are rejected. The evaluator also rejects missing or extra
+batch results and missing or extra samples per problem before writing a
+completed `report.json`; partial generation files from failed runs are not
+completed evidence. These checks validate report structure and completeness,
+not the truth of a claimed GPU execution or the contents of the raw generations.
+
 **Limits of this independent evaluator:** It uses the original boxed answer prompt and `math-verify` equivalence contract, but is a new harness, not a byte-identical replay of upstream vLLM internals. Record vLLM, tokenizer, CUDA, driver, grading versions, and numerical precision when comparing results. Repeating full scores is not re-creating the author's search trajectory. The published research scores are never inserted as new measurement results.
 
 ## C. Operator-controlled Trust Core signing (separate environment)
