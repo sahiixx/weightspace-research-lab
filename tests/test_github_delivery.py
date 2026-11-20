@@ -4,31 +4,36 @@ import re
 import shutil
 import subprocess
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'scripts' / 'publish_to_github.sh'
 
 
+def run_bash(*args):
+    bash = shutil.which('bash')
+    if bash is None:
+        pytest.skip('Bash is required for publisher checks')
+    # stdin avoids Windows paths in WSL; bytes preserve LF through Windows pipes.
+    script = SCRIPT.read_text(encoding='utf-8').encode('utf-8')
+    return subprocess.run([bash, *args], input=script, capture_output=True, timeout=30)
+
+
 def test_git_publisher_has_valid_bash_syntax():
-    if not shutil.which('bash'):
-        return
-    result = subprocess.run(['bash', '-n', str(SCRIPT)], text=True, capture_output=True)
+    result = run_bash('-n')
     assert result.returncode == 0, result.stderr
 
 
 def test_git_publisher_refuses_invalid_repository_without_network():
-    if not shutil.which('bash'):
-        return
-    result = subprocess.run(['bash', str(SCRIPT), 'invalid-repository-name'], text=True, capture_output=True)
+    result = run_bash('-s', '--', 'invalid-repository-name')
     assert result.returncode == 2
-    assert 'Usage' in result.stderr
+    assert b'Usage' in result.stderr
 
 
 def test_git_publisher_refuses_invalid_visibility_without_network():
-    if not shutil.which('bash'):
-        return
-    result = subprocess.run(['bash', str(SCRIPT), 'owner/repository', '--unlisted'], text=True, capture_output=True)
+    result = run_bash('-s', '--', 'owner/repository', '--unlisted')
     assert result.returncode == 2
-    assert 'Visibility must be' in result.stderr
+    assert b'Visibility must be' in result.stderr
 
 
 def test_github_ci_is_explicitly_read_only():
