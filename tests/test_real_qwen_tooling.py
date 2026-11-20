@@ -4,7 +4,9 @@ import importlib.util
 import json
 import hashlib
 from pathlib import Path
+import subprocess
 import sys
+from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
@@ -122,11 +124,15 @@ def test_benchmark_modes_cannot_mix():
     with pytest.raises(ValueError): E.evaluation_config("unsupported")
 
 
-def toy_run(tag="base"):
-    samples = [{"id": "x", "sample_index": 0, "correct": tag == "edited", "limit_hit": False}]
+def toy_run(tag="base", mode="smoke"):
+    config = E.evaluation_config(mode)
+    samples = [{"id": str(problem), "sample_index": sample,
+                "correct": tag == "edited", "limit_hit": False}
+               for problem in range(config["problems"])
+               for sample in range(config["samples_per_problem"])]
     return {"kind": "actual_gpu_inference_evaluation", "model_tag": tag,
-            "dataset_sha256": "a" * 64, "protocol": E.evaluation_config("smoke"),
-            "source_pins": {"a": 1}, "samples": samples}
+            "dataset_sha256": "a" * 64, "protocol": config,
+            "source_pins": {"a": 1}, "count": len(samples), "samples": samples}
 
 
 def test_comparison_requires_same_dataset_and_protocol():
@@ -146,6 +152,107 @@ def test_comparison_rejects_misaligned_sample_id():
     b, e = toy_run(), toy_run("edited")
     e["samples"][0]["id"] = "unpaired"
     with pytest.raises(ValueError, match="not exactly aligned"): R.compare(b, e)
+
+
+def test_comparison_accepts_complete_full_benchmark():
+    result = R.compare(toy_run(mode="full"), toy_run("edited", "full"))
+    assert result["mode"] == "full"
+    assert result["number_of_samples"] == 2000
+    assert result["delta_accuracy_points"] == 100
+
+
+@pytest.mark.parametrize("mode", ["smoke", "full"])
+def test_comparison_rejects_equally_truncated_runs(mode):
+    b, e = toy_run(mode=mode), toy_run("edited", mode)
+    for report in (b, e):
+        report["samples"].pop()
+        report["count"] -= 1
+    with pytest.raises(ValueError, match="Incomplete evaluation"):
+        R.compare(b, e)
+
+
+def test_comparison_rejects_full_label_with_smoke_dimensions():
+    b, e = toy_run(), toy_run("edited")
+    for report in (b, e):
+        report["protocol"]["mode"] = "full"
+    with pytest.raises(ValueError, match="dimensions"):
+        R.compare(b, e)
+
+
+def test_comparison_rejects_complete_total_with_incomplete_problem_coverage():
+    b, e = toy_run(mode="full"), toy_run("edited", "full")
+    for report in (b, e):
+        for i, row in enumerate(report["samples"]):
+            row.update(id=str(i), sample_index=0)
+    with pytest.raises(ValueError, match="problem/sample coverage"):
+        R.compare(b, e)
+
+
+@pytest.mark.parametrize("sample_index", [True, -1, 1, 0.5])
+def test_comparison_rejects_invalid_sample_index(sample_index):
+    b, e = toy_run(), toy_run("edited")
+    for report in (b, e):
+        report["samples"][0]["sample_index"] = sample_index
+    with pytest.raises(ValueError, match="sample identity"):
+        R.compare(b, e)
+
+
+@pytest.mark.parametrize("count", [None, True, 4, 6])
+def test_comparison_rejects_missing_or_inconsistent_count(count):
+    b, e = toy_run(), toy_run("edited")
+    b["count"] = count
+    with pytest.raises(ValueError, match="reported count"):
+        R.compare(b, e)
+
+
+def test_comparison_cli_refuses_to_write_incomplete_evidence(tmp_path):
+    paths = []
+    for tag in ("base", "edited"):
+        report = toy_run(tag)
+        report["samples"].pop()
+        report["count"] -= 1
+        path = tmp_path / f"{tag}.json"
+        path.write_text(json.dumps(report), encoding="utf-8")
+        paths.append(path)
+    output = tmp_path / "comparison.json"
+    result = subprocess.run([sys.executable, str(BASE / "qwen_evidence.py"), "compare",
+                             "--base", str(paths[0]), "--edited", str(paths[1]),
+                             "--out", str(output)], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 2
+    assert "Incomplete evaluation" in result.stderr
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("result_count,outputs_per_result", [(4, 1), (6, 1), (5, 0), (5, 2), (5, 1)])
+def test_evaluator_requires_exact_generation_counts(tmp_path, monkeypatch,
+                                                  result_count, outputs_per_result):
+    """Use a synthetic engine to exercise complete and invalid batch sizes."""
+    item = SimpleNamespace(text="answer", finish_reason="stop", token_ids=[1])
+    engine = SimpleNamespace(generate=lambda *args, **kwargs: [
+        SimpleNamespace(outputs=[item] * outputs_per_result) for _ in range(result_count)])
+    tokenizer = SimpleNamespace(apply_chat_template=lambda *args, **kwargs: "prompt")
+    monkeypatch.setitem(sys.modules, "vllm", SimpleNamespace(
+        LLM=lambda **kwargs: engine, SamplingParams=lambda **kwargs: kwargs))
+    monkeypatch.setitem(sys.modules, "transformers", SimpleNamespace(
+        AutoTokenizer=SimpleNamespace(from_pretrained=lambda *args, **kwargs: tokenizer)))
+    monkeypatch.setattr(E, "grade", lambda *args: False)
+    monkeypatch.setattr("importlib.metadata.version", lambda *args: "synthetic-test")
+    monkeypatch.setattr(torch.cuda, "get_device_name", lambda *args: "synthetic-test")
+    model = tmp_path / "model"
+    model.mkdir()
+    dataset = tmp_path / "test.jsonl"
+    dataset.write_text("".join(json.dumps({"unique_id": str(i), "problem": "1+1?", "answer": "2"})
+                               + "\n" for i in range(500)), encoding="utf-8")
+    output = tmp_path / "output"
+    if (result_count, outputs_per_result) == (5, 1):
+        report = E.evaluate(model, dataset, output, "smoke", model_tag="base")
+        assert report["count"] == 5
+        assert len(report["samples"]) == 5
+        assert (output / "report.json").is_file()
+    else:
+        with pytest.raises(ValueError, match="generation count"):
+            E.evaluate(model, dataset, output, "smoke", model_tag="base")
+        assert not (output / "report.json").exists()
 
 
 def test_reject_unpinned_edited_revision():
