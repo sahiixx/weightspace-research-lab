@@ -56,8 +56,77 @@ def _open_parent(path: str | Path, root: str | Path | None, create: bool) -> tup
         raise
 
 
+def _is_reparse_or_symlink(p: Path) -> bool:
+    if not os.path.lexists(p):
+        return False
+    if p.is_symlink():
+        return True
+    st = os.lstat(p)
+    attrs = getattr(st, "st_file_attributes", 0)
+    return bool(attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+
+
+def _resolve_parent_win(path: str | Path, root: str | Path | None, create: bool) -> tuple[Path, str]:
+    home, parts = _location(path, root)
+    cur = home
+    if _is_reparse_or_symlink(cur):
+        raise UnsafePath("Root or directory is a symlink or reparse point")
+    if create:
+        cur.mkdir(parents=True, exist_ok=True, mode=0o700)
+    elif not cur.is_dir():
+        raise FileNotFoundError(str(cur))
+    for part in parts[:-1]:
+        cur = cur / part
+        if os.path.lexists(cur):
+            if _is_reparse_or_symlink(cur):
+                raise UnsafePath("Directory component is a symlink or reparse point")
+            if not cur.is_dir():
+                raise UnsafePath("Directory component is not a directory")
+        elif create:
+            cur.mkdir(mode=0o700)
+        else:
+            raise FileNotFoundError(str(cur))
+    target = cur / parts[-1]
+    if _is_reparse_or_symlink(target):
+        raise UnsafePath("Target is a symlink or reparse point")
+    return cur, parts[-1]
+
+
 def safe_write_bytes(path: str | Path, content: bytes, *, root: str | Path | None = None,
                      overwrite: bool = False) -> None:
+    if os.name == "nt":
+        parent_dir, name = _resolve_parent_win(path, root, create=True)
+        target = parent_dir / name
+        if os.path.lexists(target):
+            st = os.lstat(target)
+            if _is_reparse_or_symlink(target) or not overwrite or not stat.S_ISREG(st.st_mode):
+                raise UnsafePath("Refusing to overwrite an existing file or symlink")
+        tmp_path = parent_dir / (".wslab-" + secrets.token_hex(16) + ".tmp")
+        created = False
+        try:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+            tempfd = os.open(str(tmp_path), flags, 0o600)
+            created = True
+            with os.fdopen(tempfd, "wb") as writer:
+                writer.write(content)
+                writer.flush()
+                os.fsync(writer.fileno())
+            if overwrite:
+                os.replace(tmp_path, target)
+            else:
+                try:
+                    os.link(tmp_path, target)
+                except FileExistsError as exc:
+                    raise UnsafePath("Destination already exists") from exc
+                os.unlink(tmp_path)
+            created = False
+        finally:
+            if created:
+                try:
+                    os.unlink(tmp_path)
+                except FileNotFoundError:
+                    pass
+        return
     fd, name = _open_parent(path, root, create=True)
     tmp = ".wslab-" + secrets.token_hex(16) + ".tmp"
     created = False
@@ -97,6 +166,25 @@ def safe_write_bytes(path: str | Path, content: bytes, *, root: str | Path | Non
 
 def safe_read_bytes(path: str | Path, *, root: str | Path | None = None,
                     max_bytes: int = 64 * 1024 * 1024) -> bytes:
+    if os.name == "nt":
+        parent_dir, name = _resolve_parent_win(path, root, create=False)
+        target = parent_dir / name
+        if not os.path.lexists(target):
+            raise FileNotFoundError(str(target))
+        if _is_reparse_or_symlink(target):
+            raise UnsafePath("Target is a symlink or reparse point")
+        readfd = os.open(str(target), os.O_RDONLY | getattr(os, "O_BINARY", 0))
+        try:
+            st = os.fstat(readfd)
+            if not stat.S_ISREG(st.st_mode) or st.st_size > max_bytes:
+                raise UnsafePath("Input must be a regular file within the size limit")
+            with os.fdopen(readfd, "rb", closefd=False) as source:
+                data = source.read(max_bytes + 1)
+            if len(data) > max_bytes:
+                raise UnsafePath("Input is larger than permitted")
+            return data
+        finally:
+            os.close(readfd)
     fd, name = _open_parent(path, root, create=False)
     try:
         readfd = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=fd)

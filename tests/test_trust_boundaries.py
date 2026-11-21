@@ -182,7 +182,8 @@ def test_atomic_write_no_overwrite_symlink_or_traversal(tmp_path):
     with pytest.raises(UnsafePath, match="overwrite"):
         write_json(output, {"ok": False}, root=root)
     assert read_json(output, root=root) == {"ok": True}
-    assert (output.stat().st_mode & 0o077) == 0
+    if os.name != "nt":
+        assert (output.stat().st_mode & 0o077) == 0
     with pytest.raises(UnsafePath):
         write_json(root / ".." / "escape.json", {"no": "way"}, root=root)
     (root / "redirect").symlink_to(tmp_path, target_is_directory=True)
@@ -211,9 +212,14 @@ def test_external_download_helper_requires_trusted_commit_pin():
     helper = Path(__file__).resolve().parents[1] / "scripts" / "get_official_resources.sh"
     env = os.environ.copy()
     env.pop("OFFICIAL_LOGS_COMMIT", None)
-    result = subprocess.run(["bash", str(helper)], capture_output=True, text=True, env=env)
+    git_bash = Path(r"C:\Program Files\Git\bin\bash.exe")
+    if os.name == "nt" and git_bash.exists():
+        cmd = [str(git_bash), helper.as_posix()]
+    else:
+        cmd = ["bash", str(helper)]
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
     assert result.returncode == 2
     assert "OFFICIAL_LOGS_COMMIT" in result.stderr
     env["OFFICIAL_LOGS_COMMIT"] = "not-a-valid-sha"
-    result = subprocess.run(["bash", str(helper)], capture_output=True, text=True, env=env)
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
     assert result.returncode == 2
